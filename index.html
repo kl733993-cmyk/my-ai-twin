@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My AI Twin - Gemini Edition</title>
+    <style>
+        body, html { width: 100%; height: 100%; margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #avatar-container { width: 100%; height: 100%; background: radial-gradient(circle, #1a1a2e, #000); }
+        
+        #ui-layer {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 550px; display: flex; flex-direction: column; gap: 15px; z-index: 100;
+        }
+
+        #response-bubble {
+            background: rgba(0, 0, 0, 0.75); padding: 20px; border-radius: 20px;
+            border: 1px solid #444; backdrop-filter: blur(10px); min-height: 30px;
+            text-align: center; font-size: 1.1rem; line-height: 1.4;
+        }
+
+        .input-area { display: flex; gap: 12px; }
+        input {
+            flex: 1; padding: 16px 24px; border-radius: 35px; border: none;
+            background: rgba(255, 255, 255, 0.1); color: white; font-size: 1rem; outline: none;
+        }
+        button {
+            padding: 0 30px; border-radius: 35px; border: none;
+            background: #4f46e5; color: white; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        button:hover { background: #6366f1; transform: translateY(-2px); }
+
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999;
+        }
+    </style>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.1/modules/talkinghead.mjs"
+      }
+    }
+    </script>
+</head>
+<body>
+
+    <div id="loading">
+        <div style="font-size: 20px; margin-bottom: 15px;">Synchronizing your 3D Twin...</div>
+        <div id="status">Connecting to Model...</div>
+    </div>
+
+    <div id="avatar-container"></div>
+
+    <div id="ui-layer">
+        <div id="response-bubble">I'm ready to talk. Ask me anything!</div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Ask your AI twin...">
+            <button id="sendBtn">Ask</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { TalkingHead } from "talkinghead";
+
+        // API Key integrated from your request
+        const API_KEY = "AIzaSyCRiyZBXpDMddwwlgFaCiP7vE_oMGUO2EQ"; 
+        const MODEL_URL = "https://models.readyplayer.me/64bfa15f0e72ad4ad302720c.glb";
+        
+        let head;
+
+        async function setup() {
+            const container = document.getElementById('avatar-container');
+            const status = document.getElementById('status');
+
+            head = new TalkingHead(container, {
+                cameraView: "upper",
+                tabs: true,
+                lipsyncModules: ["en"]
+            });
+
+            try {
+                await head.showAvatar({
+                    url: MODEL_URL,
+                    body: 'M',
+                    avatarMood: 'neutral'
+                }, (ev) => {
+                    if (ev.lengthComputable) {
+                        status.innerText = `Loading Assets: ${Math.round(ev.loaded/ev.total*100)}%`;
+                    }
+                });
+
+                document.getElementById('loading').style.display = 'none';
+            } catch (err) {
+                status.innerText = "Error loading 3D model. Use a local server (Live Server).";
+                console.error(err);
+            }
+        }
+
+        async function talkToGemini() {
+            const input = document.getElementById('userInput');
+            const bubble = document.getElementById('response-bubble');
+            const prompt = input.value.trim();
+            
+            if (!prompt) return;
+
+            input.value = "";
+            bubble.innerText = "...";
+
+            try {
+                // Using the 2026 standard Gemini 3.1 Flash endpoint
+                const apiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+                
+                const response = await fetch(apiURL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `Act as the AI digital twin of the user. Be concise (under 20 words). Respond to: ${prompt}`
+                            }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    bubble.innerText = "API Error: " + data.error.message;
+                    return;
+                }
+
+                const text = data.candidates[0].content.parts[0].text;
+
+                bubble.innerText = text;
+                
+                // Triggers voice and automatic lip-sync animation
+                head.speakText(text);
+
+            } catch (err) {
+                bubble.innerText = "Connection Failed. Check your internet or API key.";
+                console.error(err);
+            }
+        }
+
+        // Listeners
+        document.getElementById('sendBtn').onclick = talkToGemini;
+        document.getElementById('userInput').onkeypress = (e) => { if(e.key === 'Enter') talkToGemini(); };
+
+        setup();
+    </script>
+</body>
+</html>
