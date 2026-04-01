@@ -65,7 +65,6 @@
     <script type="module">
         import { TalkingHead } from "talkinghead";
 
-        // API Key integrated from your request
         const API_KEY = "AIzaSyCRiyZBXpDMddwwlgFaCiP7vE_oMGUO2EQ"; 
         const MODEL_URL = "https://models.readyplayer.me/64bfa15f0e72ad4ad302720c.glb";
         
@@ -82,10 +81,13 @@
             });
 
             try {
+                // FIXED: Added ttsLang and lipsyncLang for the avatar to actually "speak"
                 await head.showAvatar({
                     url: MODEL_URL,
                     body: 'M',
-                    avatarMood: 'neutral'
+                    avatarMood: 'neutral',
+                    ttsLang: "en-US",
+                    lipsyncLang: 'en'
                 }, (ev) => {
                     if (ev.lengthComputable) {
                         status.innerText = `Loading Assets: ${Math.round(ev.loaded/ev.total*100)}%`;
@@ -94,7 +96,7 @@
 
                 document.getElementById('loading').style.display = 'none';
             } catch (err) {
-                status.innerText = "Error loading 3D model. Use a local server (Live Server).";
+                status.innerText = "Error loading model. Make sure you are using a Local Server.";
                 console.error(err);
             }
         }
@@ -107,10 +109,10 @@
             if (!prompt) return;
 
             input.value = "";
-            bubble.innerText = "...";
+            bubble.innerText = "Thinking...";
 
             try {
-                // Using the 2026 standard Gemini 3.1 Flash endpoint
+                // Using 1.5 Flash for high-speed response
                 const apiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
                 
                 const response = await fetch(apiURL, {
@@ -119,7 +121,7 @@
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: `Act as the AI digital twin of the user. Be concise (under 20 words). Respond to: ${prompt}`
+                                text: `Act as a helpful digital twin. Be very concise (under 20 words). User: ${prompt}`
                             }]
                         }]
                     })
@@ -132,20 +134,18 @@
                     return;
                 }
 
-                const text = data.candidates[0].content.parts[0].text;
+                // Robust check for response text
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure how to answer that.";
 
                 bubble.innerText = text;
-                
-                // Triggers voice and automatic lip-sync animation
                 head.speakText(text);
 
             } catch (err) {
-                bubble.innerText = "Connection Failed. Check your internet or API key.";
+                bubble.innerText = "Connection Failed. Check your internet.";
                 console.error(err);
             }
         }
 
-        // Listeners
         document.getElementById('sendBtn').onclick = talkToGemini;
         document.getElementById('userInput').onkeypress = (e) => { if(e.key === 'Enter') talkToGemini(); };
 
