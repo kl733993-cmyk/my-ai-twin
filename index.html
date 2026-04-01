@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My AI Twin - Gemini Edition</title>
+    <title>My AI Twin - Live Edition</title>
     <style>
         body, html { width: 100%; height: 100%; margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #avatar-container { width: 100%; height: 100%; background: radial-gradient(circle, #1a1a2e, #000); }
@@ -14,7 +14,7 @@
         }
 
         #response-bubble {
-            background: rgba(0, 0, 0, 0.75); padding: 20px; border-radius: 20px;
+            background: rgba(0, 0, 0, 0.85); padding: 20px; border-radius: 20px;
             border: 1px solid #444; backdrop-filter: blur(10px); min-height: 30px;
             text-align: center; font-size: 1.1rem; line-height: 1.4;
         }
@@ -34,6 +34,10 @@
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999;
         }
+        #start-prompt {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
     </style>
 
     <script type="importmap">
@@ -47,7 +51,11 @@
 </head>
 <body>
 
-    <div id="loading">
+    <div id="start-prompt">
+        <button id="startBtn" style="font-size: 1.5rem; padding: 20px 40px;">Wake Up My Twin</button>
+    </div>
+
+    <div id="loading" style="display:none;">
         <div style="font-size: 20px; margin-bottom: 15px;">Synchronizing your 3D Twin...</div>
         <div id="status">Connecting to Model...</div>
     </div>
@@ -55,7 +63,7 @@
     <div id="avatar-container"></div>
 
     <div id="ui-layer">
-        <div id="response-bubble">I'm ready to talk. Ask me anything!</div>
+        <div id="response-bubble">Click "Wake Up" to start chatting!</div>
         <div class="input-area">
             <input type="text" id="userInput" placeholder="Ask your AI twin...">
             <button id="sendBtn">Ask</button>
@@ -65,12 +73,16 @@
     <script type="module">
         import { TalkingHead } from "talkinghead";
 
+        // CONFIGURATION - Put your API Key here
         const API_KEY = "AIzaSyCRiyZBXpDMddwwlgFaCiP7vE_oMGUO2EQ"; 
-        const MODEL_URL = "https://models.readyplayer.me/64bfa15f0e72ad4ad302720c.glb";
+        const MODEL_URL = "https://raw.githubusercontent.com/kl733993-cmyk/MY-Ai-Avatar/main/model.glb";
         
         let head;
 
-        async function setup() {
+        async function init() {
+            document.getElementById('start-prompt').style.display = 'none';
+            document.getElementById('loading').style.display = 'flex';
+
             const container = document.getElementById('avatar-container');
             const status = document.getElementById('status');
 
@@ -81,22 +93,22 @@
             });
 
             try {
-                // FIXED: Added ttsLang and lipsyncLang for the avatar to actually "speak"
                 await head.showAvatar({
                     url: MODEL_URL,
                     body: 'M',
                     avatarMood: 'neutral',
-                    ttsLang: "en-US",
+                    ttsLang: "en-GB", // Using a cleaner voice
                     lipsyncLang: 'en'
                 }, (ev) => {
                     if (ev.lengthComputable) {
-                        status.innerText = `Loading Assets: ${Math.round(ev.loaded/ev.total*100)}%`;
+                        status.innerText = `Downloading Assets: ${Math.round(ev.loaded/ev.total*100)}%`;
                     }
                 });
 
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('response-bubble').innerText = "I'm online. How can I help you today?";
             } catch (err) {
-                status.innerText = "Error loading model. Make sure you are using a Local Server.";
+                status.innerText = "Error loading model. Check your GitHub link.";
                 console.error(err);
             }
         }
@@ -109,10 +121,9 @@
             if (!prompt) return;
 
             input.value = "";
-            bubble.innerText = "Thinking...";
+            bubble.innerText = "...Thinking...";
 
             try {
-                // Using 1.5 Flash for high-speed response
                 const apiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
                 
                 const response = await fetch(apiURL, {
@@ -121,35 +132,28 @@
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: `Act as a helpful digital twin. Be very concise (under 20 words). User: ${prompt}`
+                                text: `Act as a cool, helpful digital twin of the user. Keep it under 20 words. User: ${prompt}`
                             }]
                         }]
                     })
                 });
 
                 const data = await response.json();
-                
-                if (data.error) {
-                    bubble.innerText = "API Error: " + data.error.message;
-                    return;
-                }
+                const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "System offline. Check API key.";
 
-                // Robust check for response text
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure how to answer that.";
-
-                bubble.innerText = text;
-                head.speakText(text);
+                bubble.innerText = aiResponse;
+                head.speakText(aiResponse);
 
             } catch (err) {
-                bubble.innerText = "Connection Failed. Check your internet.";
+                bubble.innerText = "Connection error. Are you online?";
                 console.error(err);
             }
         }
 
+        // Interaction Triggers
+        document.getElementById('startBtn').onclick = init;
         document.getElementById('sendBtn').onclick = talkToGemini;
         document.getElementById('userInput').onkeypress = (e) => { if(e.key === 'Enter') talkToGemini(); };
-
-        setup();
     </script>
 </body>
 </html>
