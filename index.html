@@ -3,157 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My AI Twin - Live Edition</title>
+    <title>3D AI Avatar Live</title>
     <style>
-        body, html { width: 100%; height: 100%; margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #avatar-container { width: 100%; height: 100%; background: radial-gradient(circle, #1a1a2e, #000); }
-        
-        #ui-layer {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 550px; display: flex; flex-direction: column; gap: 15px; z-index: 100;
-        }
-
-        #response-bubble {
-            background: rgba(0, 0, 0, 0.85); padding: 20px; border-radius: 20px;
-            border: 1px solid #444; backdrop-filter: blur(10px); min-height: 30px;
-            text-align: center; font-size: 1.1rem; line-height: 1.4;
-        }
-
-        .input-area { display: flex; gap: 12px; }
-        input {
-            flex: 1; padding: 16px 24px; border-radius: 35px; border: none;
-            background: rgba(255, 255, 255, 0.1); color: white; font-size: 1rem; outline: none;
-        }
-        button {
-            padding: 0 30px; border-radius: 35px; border: none;
-            background: #4f46e5; color: white; font-weight: bold; cursor: pointer; transition: 0.2s;
-        }
-        button:hover { background: #6366f1; transform: translateY(-2px); }
-
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999;
-        }
-        #start-prompt {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;
-        }
+        body { margin: 0; background: radial-gradient(circle, #222, #000); overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #ui { position: absolute; bottom: 10%; z-index: 100; text-align: center; width: 100%; }
+        button { padding: 20px 40px; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 50px; border: none; background: #007bff; color: white; box-shadow: 0 4px 15px rgba(0,123,255,0.4); transition: 0.3s; }
+        button:hover { background: #0056b3; transform: scale(1.05); }
+        button.active { background: #ff4444; }
+        #status { color: #aaa; margin-top: 15px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; }
     </style>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.1/modules/talkinghead.mjs"
-      }
-    }
-    </script>
 </head>
 <body>
 
-    <div id="start-prompt">
-        <button id="startBtn" style="font-size: 1.5rem; padding: 20px 40px;">Wake Up My Twin</button>
+    <div id="ui">
+        <button id="talkBtn">START CONVERSATION</button>
+        <div id="status">Ready to connect</div>
     </div>
 
-    <div id="loading" style="display:none;">
-        <div style="font-size: 20px; margin-bottom: 15px;">Synchronizing your 3D Twin...</div>
-        <div id="status">Connecting to Model...</div>
-    </div>
-
-    <div id="avatar-container"></div>
-
-    <div id="ui-layer">
-        <div id="response-bubble">Click "Wake Up" to start chatting!</div>
-        <div class="input-area">
-            <input type="text" id="userInput" placeholder="Ask your AI twin...">
-            <button id="sendBtn">Ask</button>
-        </div>
-    </div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
 
     <script type="module">
-        import { TalkingHead } from "talkinghead";
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import Vapi from 'https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js';
 
-        // CONFIGURATION - Put your API Key here
-        const API_KEY = "AIzaSyCRiyZBXpDMddwwlgFaCiP7vE_oMGUO2EQ"; 
-        const MODEL_URL = "https://raw.githubusercontent.com/kl733993-cmyk/MY-Ai-Avatar/main/model.glb";
-        
-        let head;
+        // --- DATA FROM YOUR PROMPTS ---
+        const PUBLIC_KEY = "c51f446e-9289-412e-8275-b77b710b08bd"; 
+        const ASSISTANT_ID = "8437d98b-4600-458e-9239-3ed51c84b39b";
+        const AVATAR_URL = 'https://models.readyplayer.me/648b293848b6107c191e4f4b.glb'; // Default high-quality avatar
 
-        async function init() {
-            document.getElementById('start-prompt').style.display = 'none';
-            document.getElementById('loading').style.display = 'flex';
+        // --- SETUP 3D SCENE ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.4, 1.5);
 
-            const container = document.getElementById('avatar-container');
-            const status = document.getElementById('status');
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
 
-            head = new TalkingHead(container, {
-                cameraView: "upper",
-                tabs: true,
-                lipsyncModules: ["en"]
-            });
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+        const spotLight = new THREE.SpotLight(0xffffff, 10);
+        spotLight.position.set(0, 5, 5);
+        scene.add(spotLight);
 
-            try {
-                await head.showAvatar({
-                    url: MODEL_URL,
-                    body: 'M',
-                    avatarMood: 'neutral',
-                    ttsLang: "en-GB", // Using a cleaner voice
-                    lipsyncLang: 'en'
-                }, (ev) => {
-                    if (ev.lengthComputable) {
-                        status.innerText = `Downloading Assets: ${Math.round(ev.loaded/ev.total*100)}%`;
-                    }
-                });
+        let model;
+        const loader = new GLTFLoader();
+        loader.load(AVATAR_URL, (gltf) => {
+            model = gltf.scene;
+            model.position.y = -0.5;
+            scene.add(model);
+        });
 
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('response-bubble').innerText = "I'm online. How can I help you today?";
-            } catch (err) {
-                status.innerText = "Error loading model. Check your GitHub link.";
-                console.error(err);
+        // --- VAPI AI LOGIC ---
+        const vapi = new Vapi(PUBLIC_KEY);
+        const btn = document.getElementById('talkBtn');
+        const status = document.getElementById('status');
+        let isCallActive = false;
+
+        btn.addEventListener('click', () => {
+            if (!isCallActive) {
+                vapi.start(ASSISTANT_ID);
+                status.innerText = "Connecting to Gemini...";
+            } else {
+                vapi.stop();
             }
+        });
+
+        vapi.on('call-start', () => {
+            isCallActive = true;
+            btn.innerText = "STOP CALL";
+            btn.classList.add('active');
+            status.innerText = "Listening... Start talking!";
+        });
+
+        vapi.on('call-end', () => {
+            isCallActive = false;
+            btn.innerText = "START CONVERSATION";
+            btn.classList.remove('active');
+            status.innerText = "Call ended.";
+        });
+
+        // --- LIP SYNC EMULATION ---
+        vapi.on('speech-start', () => {
+            status.innerText = "AI is speaking...";
+            if(model) model.scale.set(1.02, 1.02, 1.02); // Small visual pulse
+        });
+
+        vapi.on('speech-end', () => {
+            status.innerText = "Listening...";
+            if(model) model.scale.set(1, 1, 1);
+        });
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            if (model) model.rotation.y += 0.002; // Slow idle turn
+            renderer.render(scene, camera);
         }
+        animate();
 
-        async function talkToGemini() {
-            const input = document.getElementById('userInput');
-            const bubble = document.getElementById('response-bubble');
-            const prompt = input.value.trim();
-            
-            if (!prompt) return;
-
-            input.value = "";
-            bubble.innerText = "...Thinking...";
-
-            try {
-                const apiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-                
-                const response = await fetch(apiURL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: `Act as a cool, helpful digital twin of the user. Keep it under 20 words. User: ${prompt}`
-                            }]
-                        }]
-                    })
-                });
-
-                const data = await response.json();
-                const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "System offline. Check API key.";
-
-                bubble.innerText = aiResponse;
-                head.speakText(aiResponse);
-
-            } catch (err) {
-                bubble.innerText = "Connection error. Are you online?";
-                console.error(err);
-            }
-        }
-
-        // Interaction Triggers
-        document.getElementById('startBtn').onclick = init;
-        document.getElementById('sendBtn').onclick = talkToGemini;
-        document.getElementById('userInput').onkeypress = (e) => { if(e.key === 'Enter') talkToGemini(); };
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
